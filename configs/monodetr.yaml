@@ -99,9 +99,8 @@ trainer:
   gpu_ids: '0'
   save_frequency: 1  # checkpoint save interval (in epoch)
   # resume_model: True
-  pretrain_model: /workspace/monodetr/MonoDETR_p/torch_init.pdparams
-  save_path: './runs_load_torch_init9/'
-  # save_path: './runs/'
+  pretrain_model: resnet50.pdparams
+  save_path: './runs/'
   save_all: False  # False for only savng the best and latest ckpts
 
 

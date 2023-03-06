@@ -1,121 +1,67 @@
-# MonoDETR: Depth-guided Transformer for Monocular 3D Object Detection
-Official implementation of the paper ['MonoDETR: Depth-guided Transformer for Monocular 3D Object Detection'](https://arxiv.org/pdf/2203.13310.pdf).
+# 使用文档
 
-**For our multi-view version, MonoDETR-MV on nuScenes dataset, please refer to [MonoDETR-MV](https://github.com/ZrrSkywalker/MonoDETR-MV).**
+## 环境要求
 
-## Introduction
-MonoDETR is the **first DETR-based model** for monocular 3D detection **without additional depth supervision, anchors or NMS**, which achieves leading performance on KITTI *val* and *test* set. We enable the vanilla transformer in DETR to be depth-aware and enforce the whole detection process guided by depth. In this way, each object estimates its 3D attributes adaptively from the depth-informative regions on the image, not limited by center-around features.
-<div align="center">
-  <img src="pipeline.jpg"/>
-</div>
+- PaddlePaddle 2.4及以上
+- OS 64位操作系统
+- Python 3(3.5.1+/3.6/3.7/3.8/3.9)，64位版本
+- pip/pip3(9.0.1+)，64位版本
+- CUDA >= 10.1
+- cuDNN >= 7.6
 
-## Main Results
-The randomness of training for monocular detection would cause the variance of ±1 AP<sub>3D</sub>. For reproducibility, we provide four training logs of MonoDETR on KITTI *val* set for the car category: (the stable version is still under tuned)
+## 安装说明
 
-**We have relased the ckpts of our implementation for reproducibility. The module names might have some mismatch, which will be rectified in a few days.**
+### 1. 安装PaddlePaddle
 
-<table>
-    <tr>
-        <td rowspan="2",div align="center">Models</td>
-        <td colspan="3",div align="center">Val, AP<sub>3D|R40</sub></td>   
-        <td rowspan="2",div align="center">Logs</td>
-        <td rowspan="2",div align="center">Ckpts</td>
-    </tr>
-    <tr>
-        <td div align="center">Easy</td> 
-        <td div align="center">Mod.</td> 
-        <td div align="center">Hard</td> 
-    </tr>
-    <tr>
-        <td rowspan="4",div align="center">MonoDETR</td>
-        <td div align="center">28.84%</td> 
-        <td div align="center">20.61%</td> 
-        <td div align="center">16.38%</td> 
-        <td div align="center"><a href="https://drive.google.com/file/d/124u2WW_DqDyKrpUe3lQ8TR6xth8rn9YH/view?usp=sharing">log</a></td>
-        <td div align="center"><a href="https://drive.google.com/drive/folders/1eIQtH3RzJqOCHm9hwgmjmQAnG5qJNFCN?usp=sharing">ckpt</a></td>
-    </tr>  
-    <tr>
-        <td div align="center">26.66%</td> 
-        <td div align="center">20.14%</td> 
-        <td div align="center">16.88%</td> 
-        <td div align="center"><a href="https://drive.google.com/file/d/1gSof60oOnno_qAHRViXKQ6CyqRI7O0tr/view?usp=sharing">log</a></td>
-        <td div align="center"><a href="https://drive.google.com/drive/folders/1eIQtH3RzJqOCHm9hwgmjmQAnG5qJNFCN?usp=sharing">ckpt</a></td>
-    </tr> 
-    <tr>
-        <td div align="center">29.53%</td> 
-        <td div align="center">20.13%</td> 
-        <td div align="center">16.57%</td> 
-        <td div align="center"><a href="https://drive.google.com/file/d/1rrayzzwHGpddE1f_mfvq0RQb5xpWcPAL/view?usp=sharing">log</a></td>
-        <td div align="center"><a href="https://drive.google.com/drive/folders/1eIQtH3RzJqOCHm9hwgmjmQAnG5qJNFCN?usp=sharing">ckpt</a></td>
-    </tr> 
-    <tr>
-        <td div align="center">27.11%</td> 
-        <td div align="center">20.08%</td> 
-        <td div align="center">16.18%</td> 
-        <td div align="center"><a href="https://drive.google.com/file/d/1D6IOkscfypGSEbsXcHZ60-q492zvMLp7/view?usp=sharing">log</a></td>
-        <td div align="center"><a href="https://drive.google.com/drive/folders/1eIQtH3RzJqOCHm9hwgmjmQAnG5qJNFCN?usp=sharing">ckpt</a></td>
-    </tr> 
-</table>
+```
+# CUDA10.2
+python -m pip install paddlepaddle-gpu==0.0.0.post102 -f https://www.paddlepaddle.org.cn/whl/linux/gpu/develop.html
+```
+- 更多CUDA版本或环境快速安装，请参考[PaddlePaddle快速安装文档](https://www.paddlepaddle.org.cn/install/quick)
+- 更多安装方式例如conda或源码编译安装方法，请参考[PaddlePaddle安装文档](https://www.paddlepaddle.org.cn/documentation/docs/zh/install/index_cn.html)
 
-MonoDETR on *test* set from official [KITTI benckmark](http://www.cvlibs.net/datasets/kitti/eval_object_detail.php?&result=22a0e176d4f7794e7c142c93f4f8891749aa738f) for the car category:
-<table>
-    <tr>
-        <td rowspan="2",div align="center">Models</td>
-        <td colspan="3",div align="center">Test, AP<sub>3D|R40</sub></td>   
-    </tr>
-    <tr>
-        <td div align="center">Easy</td> 
-        <td div align="center">Mod.</td> 
-        <td div align="center">Hard</td> 
-    </tr>
-    <tr>
-        <td rowspan="2",div align="center">MonoDETR</td>
-        <td div align="center">24.52%</td> 
-        <td div align="center">16.26%</td> 
-        <td div align="center">13.93%</td> 
-    </tr>  
-    <tr>
-        <td div align="center">25.00%</td> 
-        <td div align="center">16.47%</td> 
-        <td div align="center">13.58%</td> 
-    </tr>  
-    
-</table>
+请确保您的PaddlePaddle安装成功。使用以下命令进行验证。
 
+```
+# 在您的Python解释器中确认PaddlePaddle安装成功
+>>> import paddle
+>>> paddle.utils.run_check()
 
-## Installation
-1. Clone this project and create a conda environment:
-    ```
-    git clone https://github.com/ZrrSkywalker/MonoDETR.git
-    cd MonoDETR
+# 确认PaddlePaddle版本
+python -c "import paddle; print(paddle.__version__)"
+```
+**注意**
+1. 如果您希望在多卡环境下使用PaddleDetection，请首先安装NCCL
 
-    conda create -n monodetr python=3.8
-    conda activate monodetr
-    ```
-    
-2. Install pytorch and torchvision matching your CUDA version:
-    ```
-    conda install pytorch torchvision cudatoolkit
-    ```
-    
-3. Install requirements and compile the deformable attention:
-    ```
-    pip install -r requirements.txt
+### 2. 编译自定义算子
 
-    cd lib/models/monodetr/ops/
-    bash make.sh
-    
-    cd ../../../..
-    ```
-    
-4. Make dictionary for saving training losses:
-    ```
-    mkdir logs
-    ```
+```
+# 安装依赖
+git clone https://github.com/PaddlePaddle/Paddle3D.git
+cd Paddle3D
+pip install -r requirements.txt
+pip install -e .
+
+cd paddle3d/ops/
+python setup.py install
+
+cd ../../../
+
+```
+### 2. 安装环境
+
+```
+# 安装依赖
+git clone https://github.com/wangna11BD/MonoDETR_paddle.git 
+
+cd MonoDETR_paddle
+pip install -r requirements.txt
+mkdir logs
+```
  
-5. Download [KITTI](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) datasets and prepare the directory structure as:
+5. 下载 [KITTI](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) 数据集，数据集结构如下：
     ```
-    │MonoDETR/
+    │MonoDETR_paddle/
     ├──...
     ├──data/KITTIDataset/
     │   ├──ImageSets/
@@ -123,23 +69,39 @@ MonoDETR on *test* set from official [KITTI benckmark](http://www.cvlibs.net/dat
     │   ├──testing/
     ├──...
     ```
-    You can also change the data path at "dataset/root_dir" in `configs/monodetr.yaml`.
     
-## Get Started
 
-### Train
-You can modify the settings of models and training in `configs/monodetr.yaml` and appoint the GPU in `train.sh`:
+## 使用说明
 
-    bash train.sh configs/monodetr.yaml > logs/monodetr.log
-   
-### Test
-The best checkpoint will be evaluated as default. You can change it at "tester/checkpoint" in `configs/monodetr.yaml`:
-
-    bash test.sh configs/monodetr.yaml
+MonoDETR模型的配置文件为`configs/monodetr.yaml`目录下
 
 
-## Acknowlegment
-This repo benefits from the excellent [Deformable-DETR](https://github.com/fundamentalvision/Deformable-DETR) and [MonoDLE](https://github.com/xinzhuma/monodle).
+### resnet50预训练模型下载
+下载预训练模型放在当前文件夹下 https://ecloud.baidu.com?t=e34a3edaf4cd7160ef09995bef241171
+
+### 训练
+```
+bash train.sh configs/monodetr.yaml > logs/monodetr.log
+```
+
+### 评估
+```
+bash test.sh configs/monodetr.yaml
+```
+
+## 复现结果
+训练环境：16G P40 cuda10.2 py3.6.8 torch1.12.0  paddle2.4
+复现结果对比 		
+
+|     | Easy | Mod. | Hard | log | 模型 |
+|:--------|:-------|:-------|:-------|:---------|:---------|
+| torch | 25.46% | 19.74% | 16.57% | [log](https://ecloud.baidu.com?t=e34a3edaf4cd71600a5f16968f5d2ce5) | [model](https://ecloud.baidu.com?t=e34a3edaf4cd71606478a7f0c9938556) |
+| torch | 25.77% | 18.63% | 15.38% | - | - |
+| paddle | 26.47% | 18.78% | 15.54% | - | - |
+| paddle | 26.21% | 18.93% | 15.75% | - | - |
+| paddle | 27.23% | 19.55% | 16.15%  | [log1](https://ecloud.baidu.com?t=e34a3edaf4cd71603363e3c4b41b9030)[log2](https://ecloud.baidu.com?t=e34a3edaf4cd7160609db4377c89e094) | [model](https://ecloud.baidu.com?t=e34a3edaf4cd7160c5030a592c7d9c91) |
+| paddle | 23.91% | 18.10% | 15.13%| - | - |
+
 
 ## Citation
 ```bash
@@ -151,5 +113,3 @@ This repo benefits from the excellent [Deformable-DETR](https://github.com/funda
 }
 ```
 
-## Contact
-If you have any question about this project, please feel free to contact zhangrenrui@pjlab.org.cn.
