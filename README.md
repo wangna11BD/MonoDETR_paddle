@@ -91,16 +91,21 @@ bash test.sh configs/monodetr.yaml
 
 ## 复现结果
 训练环境：16G P40 cuda10.2 py3.6.8 torch1.12.0  paddle2.4
-复现结果对比 		
+复现结果对比 (paddle1为第一版代码训练结果，paddle2为第二版代码训练结果)
 
 |     | Easy | Mod. | Hard | log | 模型 |
 |:--------|:-------|:-------|:-------|:---------|:---------|
 | torch | 25.46% | 19.74% | 16.57% | [log](https://ecloud.baidu.com?t=e34a3edaf4cd71600a5f16968f5d2ce5) | [model](https://ecloud.baidu.com?t=e34a3edaf4cd71606478a7f0c9938556) |
 | torch | 25.77% | 18.63% | 15.38% | - | - |
-| paddle | 26.47% | 18.78% | 15.54% | - | - |
-| paddle | 26.21% | 18.93% | 15.75% | - | - |
-| paddle | 27.23% | 19.55% | 16.15%  | [log1](https://ecloud.baidu.com?t=e34a3edaf4cd71603363e3c4b41b9030)[log2](https://ecloud.baidu.com?t=e34a3edaf4cd7160609db4377c89e094) | [model](https://ecloud.baidu.com?t=e34a3edaf4cd7160c5030a592c7d9c91) |
-| paddle | 23.91% | 18.10% | 15.13%| - | - |
+| paddle1 | 26.47% | 18.78% | 15.54% | - | - |
+| paddle1 | 26.21% | 18.93% | 15.75% | - | - |
+| paddle1 | 27.23% | 19.55% | 16.15%  | [log1](https://ecloud.baidu.com?t=e34a3edaf4cd71603363e3c4b41b9030)[log2](https://ecloud.baidu.com?t=e34a3edaf4cd7160609db4377c89e094) | [model](https://ecloud.baidu.com?t=e34a3edaf4cd7160c5030a592c7d9c91) |
+| paddle1 | 23.91% | 18.10% | 15.13%| - | - |
+| paddle2 | 26.29% | 19.23% | 16.05%| [log](https://ecloud.baidu.com?t=3b42f5a910ca6e1726fd2930e97f6a18) | [model](https://ecloud.baidu.com?t=3b42f5a910ca6e1772b12d3587e614b9) |
+| paddle2 | 26.04% | 19.30% | 15.92%| [log](https://ecloud.baidu.com?t=3b42f5a910ca6e171ca1fbed04b2fac1) | [model](https://ecloud.baidu.com?t=3b42f5a910ca6e17674fc3876d19a45d) |
+| paddle2 | 25.93% | 19.24% | 16.09%| [log](https://ecloud.baidu.com?t=3b42f5a910ca6e17d1bd7140faa0d2d4) | [model](https://ecloud.baidu.com?t=3b42f5a910ca6e178683ee5e6995ad89) |
+| paddle2 | 26.57% | 19.12% | 15.90%| [log](https://ecloud.baidu.com?t=3b42f5a910ca6e1783fc292da8d11b59) | [model](https://ecloud.baidu.com?t=3b42f5a910ca6e1784766cb8006e31d4) |
+| paddle2 | 26.33% | 19.09% | 15.89%| [log](https://ecloud.baidu.com?t=3b42f5a910ca6e17f5359d682a22ae84) | [model](https://ecloud.baidu.com?t=3b42f5a910ca6e17ee18ead22df98741) |
 
 
 ## Citation
