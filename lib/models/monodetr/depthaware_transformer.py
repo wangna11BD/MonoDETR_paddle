@@ -1,4 +1,5 @@
 import paddle
+import paddle.nn as nn
 from typing import Optional, List
 import math
 import copy

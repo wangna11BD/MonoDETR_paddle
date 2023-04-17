@@ -129,12 +129,6 @@ class Trainer(object):
                 print('')
             detr_losses.backward()
             self.optimizer.step()
-            # for name, param in self.model.named_parameters():
-            #     if not param.stop_gradient:
-            #         if param.grad is not None:
-            #             io.savemat('/workspace/monodetr/grad_data/'+name+'_p.mat',{'data':param.grad.numpy()})
-            #         else:
-            #             print("{} has not gradient".format(name))
             progress_bar.update()
         progress_bar.close()
 

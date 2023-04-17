@@ -55,24 +55,14 @@ class HungarianMatcher(paddle.nn.Layer):
         cost_class = paddle.index_select(pos_cost_class, tgt_ids, axis=1) - paddle.index_select(neg_cost_class, tgt_ids, axis=1)
         out_3dcenter = outputs['pred_boxes'][:, :, 0:2].flatten(start_axis=
             0, stop_axis=1)
-        tgt_3dcenter = paddle.concat(x=[v['boxes_3d'][:, 0:2] for v in targets]
-            )
-        # wangna11 TODO
+        tgt_3dcenter = paddle.concat(x=[v['boxes_3d'][:, 0:2] for v in targets])
+
         cost_3dcenter = pairwise_dist(out_3dcenter, tgt_3dcenter)
-        # cost_3dcenter = torch.cdist(out_3dcenter, tgt_3dcenter, p=1)
-        # Paddle3D/paddle3d/models/heads/dense_heads/match_costs/match_cost.py pairwise_dist
-        # cost_3dcenter = scipy.spatial.distance.cdist(out_3dcenter.numpy(), tgt_3dcenter.numpy(), 'minkowski', p=1)
-        # cost_3dcenter = paddle.to_tensor(cost_3dcenter)
- 
+
         out_2dbbox = outputs['pred_boxes'][:, :, 2:6].flatten(start_axis=0,
             stop_axis=1)
         tgt_2dbbox = paddle.concat(x=[v['boxes_3d'][:, 2:6] for v in targets])
-        # wangna11 TODO
         cost_bbox = pairwise_dist(out_2dbbox, tgt_2dbbox)
-        # cost_bbox = torch.cdist(out_2dbbox, tgt_2dbbox, p=1)
-        # Paddle3D/paddle3d/models/heads/dense_heads/match_costs/match_cost.py pairwise_dist
-        # cost_bbox = scipy.spatial.distance.cdist(out_2dbbox.numpy(), tgt_2dbbox.numpy(), 'minkowski', p=1)
-        # cost_bbox = paddle.to_tensor(cost_bbox)
 
         out_bbox = outputs['pred_boxes'].flatten(start_axis=0, stop_axis=1)
         tgt_bbox = paddle.concat(x=[v['boxes_3d'] for v in targets])

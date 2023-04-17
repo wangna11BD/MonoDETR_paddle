@@ -12,8 +12,8 @@ from .depthaware_transformer import build_depthaware_transformer
 from .depth_predictor import DepthPredictor
 from .depth_predictor.ddn_loss import DDNLoss
 from lib.losses.focal_loss import sigmoid_focal_loss
-from .param_init import constant_init, xavier_uniform_init
-
+from .param_init import constant_init, xavier_uniform_init, reset_parameters, kaiming_uniform_init
+import time
 
 def _get_clones(module, N):
     return paddle.nn.LayerList(sublayers=[copy.deepcopy(module) for i in
@@ -78,6 +78,12 @@ class MonoDETR(paddle.nn.Layer):
                 Sequential(paddle.nn.Conv2D(in_channels=backbone.
                 num_channels[0], out_channels=hidden_dim, kernel_size=1),
                 paddle.nn.GroupNormm(32, hidden_dim))])
+        for sublayer in self.input_proj.sublayers():
+            if isinstance(sublayer, paddle.nn.GroupNorm):
+                constant_init(sublayer.weight, value=1)
+                constant_init(sublayer.bias, value=0)
+            else:
+                reset_parameters(sublayer)
         self.backbone = backbone
         self.aux_loss = aux_loss
         self.with_box_refine = with_box_refine
@@ -147,6 +153,7 @@ class MonoDETR(paddle.nn.Layer):
         if not self.two_stage:
             query_embeds = self.query_embed.weight
         pred_depth_map_logits, depth_pos_embed, weighted_depth = (self.depth_predictor(srcs, masks[1], pos[1]))
+
         (hs, init_reference, inter_references, inter_references_dim,
             enc_outputs_class, enc_outputs_coord_unact) = (self.
             depthaware_transformer(srcs, masks, pos, query_embeds,
@@ -254,9 +261,8 @@ class SetCriterion(paddle.nn.Layer):
         target_classes_o = []
         for t, (_, J) in zip(targets, indices):
             if J.shape[0] != 0:
-                target_classes_o.append(t['labels'][J])
+                target_classes_o.append(paddle.index_select(t['labels'], index=J))
         target_classes_o = paddle.concat(target_classes_o)
-        # target_classes_o = paddle.concat(x=[t['labels'][J] for t, (_, J) in zip(targets, indices)])
         target_classes = paddle.full(shape=src_logits.shape[:2], fill_value=self.num_classes, dtype='int64')
         target_classes[idx] = target_classes_o.squeeze().cast(dtype='int64')
         target_classes_onehot = paddle.zeros(shape=[src_logits.shape[0],
@@ -268,7 +274,7 @@ class SetCriterion(paddle.nn.Layer):
             num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         losses = {'loss_ce': loss_ce}
         if log:
-            losses['class_error'] = 100 - accuracy(src_logits[idx],
+            losses['class_error'] = 100 - accuracy(paddle.gather_nd(src_logits, index=paddle.stack(idx, 1)),
                 target_classes_o)[0]
         return losses
 
@@ -289,22 +295,15 @@ class SetCriterion(paddle.nn.Layer):
 
     def loss_3dcenter(self, outputs, targets, indices, num_boxes):
         idx = self._get_src_permutation_idx(indices)
-        if idx[1].shape[0]==1:
-            src_3dcenter = outputs['pred_boxes'][:, :, 0:2][idx].unsqueeze(0)
-        else:
-            src_3dcenter = outputs['pred_boxes'][:, :, 0:2][idx]
+
+        src_3dcenter = paddle.gather_nd(outputs['pred_boxes'][:, :, 0:2], index=paddle.stack(idx, 1))
 
         target_3dcenter = []
         for t, (_, i) in zip(targets, indices):
             if i.shape[0] != 0 and t['boxes_3d'].shape[0] != 0:
-                if i.shape[0] == 1:
-                    target_3dcenter.append(t['boxes_3d'][:, 0:2][i].unsqueeze(0))
-                else:
-                    target_3dcenter.append(t['boxes_3d'][:, 0:2][i])
+                target_3dcenter.append(paddle.index_select(t['boxes_3d'][:, 0:2], index=i))
         target_3dcenter = paddle.concat(target_3dcenter, axis=0)
 
-        # target_3dcenter = paddle.concat(x=[t['boxes_3d'][:, 0:2][i] for t,
-        #     (_, i) in zip(targets, indices)], axis=0)
         loss_3dcenter = paddle.nn.functional.l1_loss(src_3dcenter,
             target_3dcenter, reduction='none')
         losses = {}
@@ -314,17 +313,12 @@ class SetCriterion(paddle.nn.Layer):
     def loss_boxes(self, outputs, targets, indices, num_boxes):
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
-        src_2dboxes = outputs['pred_boxes'][:, :, 2:6][idx]
+        src_2dboxes = paddle.gather_nd(outputs['pred_boxes'][:, :, 2:6], index=paddle.stack(idx, 1))
         target_2dboxes = []
         for t, (_, i) in zip(targets, indices):
             if i.shape[0] != 0 and t['boxes_3d'].shape[0] != 0:
-                if i.shape[0] == 1:
-                    target_2dboxes.append(t['boxes_3d'][:, 2:6][i].unsqueeze(0))
-                else:
-                    target_2dboxes.append(t['boxes_3d'][:, 2:6][i])
+                target_2dboxes.append(paddle.index_select(t['boxes_3d'][:, 2:6], index=i))
         target_2dboxes = paddle.concat(target_2dboxes, axis=0)
-        # target_2dboxes = paddle.concat(x=[t['boxes_3d'][:, 2:6][i] for t, (
-        #     _, i) in zip(targets, indices)], axis=0)
         loss_bbox = paddle.nn.functional.l1_loss(src_2dboxes, target_2dboxes,
             reduction='none')
         losses = {}
@@ -336,13 +330,9 @@ class SetCriterion(paddle.nn.Layer):
         target_boxes = []
         for t, (_, i) in zip(targets, indices):
             if i.shape[0] != 0 and t['boxes_3d'].shape[0] != 0:
-                if i.shape[0] == 1:
-                    target_boxes.append(t['boxes_3d'][i].unsqueeze(0))
-                else:
-                    target_boxes.append(t['boxes_3d'][i])
+                target_boxes.append(paddle.index_select(t['boxes_3d'], index=i))
         target_boxes = paddle.concat(target_boxes, axis=0)
-        # target_boxes = paddle.concat(x=[t['boxes_3d'][i] for t, (_, i) in
-        #     zip(targets, indices)], axis=0)
+
         loss_giou = 1 - paddle.diag(x=box_ops.generalized_box_iou(box_ops.
             box_cxcylrtb_to_xyxy(src_boxes), box_ops.box_cxcylrtb_to_xyxy(
             target_boxes)))
@@ -351,22 +341,14 @@ class SetCriterion(paddle.nn.Layer):
 
     def loss_depths(self, outputs, targets, indices, num_boxes):
         idx = self._get_src_permutation_idx(indices)
-        if idx[1].shape[0]==1:
-            src_depths = outputs['pred_depth'][idx].unsqueeze(0)
-        else:
-            src_depths = outputs['pred_depth'][idx]
+        src_depths = paddle.gather_nd(outputs['pred_depth'], index=paddle.stack(idx, 1))
 
         target_depths = []
         for t, (_, i) in zip(targets, indices):
             if i.shape[0] != 0 and t['depth'].shape[0] != 0:
-                if i.shape[0] == 1:
-                    target_depths.append(t['depth'][i].unsqueeze(0))
-                else:
-                    target_depths.append(t['depth'][i])
+                target_depths.append(paddle.index_select(t['depth'], index=i))
         target_depths = paddle.concat(target_depths, axis=0).squeeze()
 
-        # target_depths = paddle.concat(x=[t['depth'][i] for t, (_, i) in zip
-        #     (targets, indices)], axis=0).squeeze()
         depth_input, depth_log_variance = src_depths[:, (0)], src_depths[:, (1)
             ]
         depth_loss = 1.4142 * paddle.exp(x=-depth_log_variance) * paddle.abs(x
@@ -377,22 +359,15 @@ class SetCriterion(paddle.nn.Layer):
 
     def loss_dims(self, outputs, targets, indices, num_boxes):
         idx = self._get_src_permutation_idx(indices)
-        if idx[1].shape[0]==1:
-            src_dims = outputs['pred_3d_dim'][idx].unsqueeze(0)
-        else:
-            src_dims = outputs['pred_3d_dim'][idx]
+
+        src_dims = paddle.gather_nd(outputs['pred_3d_dim'], index=paddle.stack(idx, 1))
 
         target_dims = []
         for t, (_, i) in zip(targets, indices):
             if i.shape[0] != 0 and t['size_3d'].shape[0] != 0:
-                if i.shape[0] == 1:
-                    target_dims.append(t['size_3d'][i].unsqueeze(0))
-                else:
-                    target_dims.append(t['size_3d'][i])
+                target_dims.append(paddle.index_select(t['size_3d'], index=i))
         target_dims = paddle.concat(target_dims, axis=0)
 
-        # target_dims = paddle.concat(x=[t['size_3d'][i] for t, (_, i) in zip
-        #     (targets, indices)], axis=0)
         dimension = target_dims.clone().detach()
         dim_loss = paddle.abs(x=src_dims - target_dims)
         dim_loss /= dimension
@@ -406,33 +381,20 @@ class SetCriterion(paddle.nn.Layer):
 
     def loss_angles(self, outputs, targets, indices, num_boxes):
         idx = self._get_src_permutation_idx(indices)
-        if idx[1].shape[0]==1:
-            heading_input = outputs['pred_angle'][idx].unsqueeze(0)
-        else:
-            heading_input = outputs['pred_angle'][idx]
+        heading_input = paddle.gather_nd(outputs['pred_angle'], index=paddle.stack(idx, 1))
         
         target_heading_cls = []
         for t, (_, i) in zip(targets, indices):
             if i.shape[0] != 0 and t['heading_bin'].shape[0] != 0:
-                if i.shape[0] == 1:
-                    target_heading_cls.append(t['heading_bin'][i].unsqueeze(0))
-                else:
-                    target_heading_cls.append(t['heading_bin'][i])
+                target_heading_cls.append(paddle.index_select(t['heading_bin'], index=i))
         target_heading_cls = paddle.concat(target_heading_cls, axis=0)
 
         target_heading_res = []
         for t, (_, i) in zip(targets, indices):
             if i.shape[0] != 0 and t['heading_res'].shape[0] != 0:
-                if i.shape[0] == 1:
-                    target_heading_res.append(t['heading_res'][i].unsqueeze(0))
-                else:
-                    target_heading_res.append(t['heading_res'][i])
+                target_heading_res.append(paddle.index_select(t['heading_res'], index=i))
         target_heading_res = paddle.concat(target_heading_res, axis=0)
 
-        # target_heading_cls = paddle.concat(x=[t['heading_bin'][i] for t, (_,
-        #     i) in zip(targets, indices)], axis=0)
-        # target_heading_res = paddle.concat(x=[t['heading_res'][i] for t, (_,
-        #     i) in zip(targets, indices)], axis=0)
         heading_input = heading_input.reshape([-1, 24])
         heading_target_cls = target_heading_cls.reshape([-1]).astype(dtype='int64')
         heading_target_res = target_heading_res.reshape([-1])
@@ -493,6 +455,34 @@ class SetCriterion(paddle.nn.Layer):
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
+        dim = sum([x['labels'].shape[0] for x in targets])
+        if dim == 0:
+            losses = {
+                'loss_ce': paddle.zeros([1]),
+                'class_error': paddle.zeros([1]),
+                'loss_bbox': paddle.zeros([1]),
+                'loss_giou': paddle.zeros([1]),
+                'cardinality_error': paddle.zeros([1]),
+                'loss_depth': paddle.zeros([1]),
+                'loss_dim': paddle.zeros([1]),
+                'loss_angle': paddle.zeros([1]),
+                'loss_center': paddle.zeros([1]),
+                'loss_depth_map': paddle.zeros([1])
+            }
+            if 'aux_outputs' in outputs:
+                for i, aux_outputs in enumerate(outputs['aux_outputs']):
+                    l_dict = {
+                        'loss_ce_'+str(i): paddle.zeros([1]),
+                        'loss_bbox_'+str(i): paddle.zeros([1]),
+                        'loss_giou_'+str(i): paddle.zeros([1]),
+                        'cardinality_error_'+str(i): paddle.zeros([1]),
+                        'loss_depth_'+str(i): paddle.zeros([1]),
+                        'loss_dim_'+str(i): paddle.zeros([1]),
+                        'loss_angle_'+str(i): paddle.zeros([1]),
+                        'loss_center_'+str(i): paddle.zeros([1])
+                    }
+                    losses.update(l_dict)
+            return losses
         outputs_without_aux = {k: v for k, v in outputs.items() if k !=
             'aux_outputs'}
         indices = self.matcher(outputs_without_aux, targets)
@@ -532,6 +522,11 @@ class MLP(paddle.nn.Layer):
         self.layers = paddle.nn.LayerList(sublayers=(paddle.nn.Linear(
             in_features=n, out_features=k) for n, k in zip([input_dim] + h,
             h + [output_dim])))
+        self.init_weight()
+    
+    def init_weight(self):
+        for sublayer in self.sublayers():
+            reset_parameters(sublayer)
 
     def forward(self, x):
         for i, layer in enumerate(self.layers):

@@ -19,6 +19,7 @@ import paddle.nn.functional as F
 from paddle import ParamAttr
 from paddle.nn.initializer import Constant, Uniform
 from paddle.regularizer import L2Decay
+from paddle.distributed.fleet.utils import recompute
 
 from paddle3d.models import layers
 from paddle3d.models.layers import reset_parameters
@@ -177,7 +178,8 @@ class BottleneckBlock(nn.Layer):
                  dilation=1,
                  is_vd_mode=False,
                  norm_layer=None,
-                 data_format='NCHW'):
+                 data_format='NCHW',
+                 with_cp=False):
         super(BottleneckBlock, self).__init__()
 
         self.data_format = data_format
@@ -227,8 +229,9 @@ class BottleneckBlock(nn.Layer):
         self.shortcut = shortcut
         # NOTE: Use the wrap layer for quantization training
         self.relu = nn.ReLU()
+        self.with_cp = with_cp
 
-    def forward(self, inputs):
+    def _inner_forward(self, inputs):
         y = self.conv0(inputs)
         conv1 = self.conv1(y)
         conv2 = self.conv2(conv1)
@@ -239,8 +242,16 @@ class BottleneckBlock(nn.Layer):
             short = self.short(inputs)
 
         y = paddle.add(short, conv2)
-        y = self.relu(y)
         return y
+
+    def forward(self, inputs):
+        if self.with_cp and (not inputs.stop_gradient):
+            out = recompute(self._inner_forward, inputs)
+        else:
+            out = self._inner_forward(inputs)
+        
+        out = self.relu(out)
+        return out
 
 
 class BasicBlock(nn.Layer):
@@ -314,7 +325,8 @@ class ResNet(nn.Layer):
                  variant='b',
                  norm_layer=None,
                  do_preprocess=True,
-                 data_format='NCHW'):
+                 data_format='NCHW',
+                 with_cp=False):
         """
         Residual Network, see https://arxiv.org/abs/1512.03385
 
@@ -333,6 +345,7 @@ class ResNet(nn.Layer):
         self.do_preprocess = do_preprocess
         self.norm_mean = paddle.to_tensor([0.485, 0.456, 0.406])
         self.norm_std = paddle.to_tensor([0.229, 0.224, 0.225])
+        self.with_cp = with_cp
         supported_layers = [18, 34, 50, 101, 152, 200]
         assert layers in supported_layers, \
             "supported layers are {} but input layer is {}".format(
@@ -428,7 +441,8 @@ class ResNet(nn.Layer):
                             is_vd_mode=variant in ['c', 'd'],
                             dilation=dilation_rate,
                             norm_layer=norm_layer,
-                            data_format=data_format))
+                            data_format=data_format,
+                            with_cp=self.with_cp))
 
                     block_list.append(bottleneck_block)
                     shortcut = True
@@ -529,7 +543,8 @@ class FrozenResNet50(nn.Layer):
                  variant='b',
                  norm_layer=None,
                  do_preprocess=True,
-                 data_format='NCHW'):
+                 data_format='NCHW',
+                 with_cp=False):
         super(FrozenResNet50, self).__init__()
         self.strides = [8, 16, 32]
         self.num_channels = [512, 1024, 2048]
@@ -538,11 +553,12 @@ class FrozenResNet50(nn.Layer):
                             multi_grid=multi_grid,
                             return_idx=return_idx,
                             norm_layer=norm_layer,
-                            do_preprocess=do_preprocess)
+                            do_preprocess=do_preprocess,
+                            with_cp=with_cp)
         for name, parameter in self.model.named_parameters():
             if (('layer_1' not in name) and ('layer_2' not in name) and ('layer_3' not in name)):
                 parameter.stop_gradient=True
-    
+
     def forward(self, images):
         xs = self.model(images)
         out = []
@@ -571,6 +587,6 @@ class Joiner(paddle.nn.Sequential):
 
 def build_backbone(cfg):
     position_embedding = build_position_encoding(cfg)
-    backbone = FrozenResNet50(norm_layer='frozenbn', do_preprocess=False, return_idx=[1,2,3])
+    backbone = FrozenResNet50(norm_layer='frozenbn', do_preprocess=False, return_idx=[1,2,3], with_cp=True)
     model = Joiner(backbone, position_embedding)
     return model

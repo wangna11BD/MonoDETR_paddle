@@ -5,7 +5,7 @@ dataset:
   root_dir: 'data/KITTIDataset'
   train_split: 'train'
   test_split: 'val'
-  batch_size: 8 #16
+  batch_size: 8 
   batch_size_test: 1
   use_3d_center: True
   class_merging: False
@@ -83,19 +83,19 @@ model:
 
 optimizer:
   type: 'adamw'
-  lr: 0.0001 #0.0002
-  weight_decay: 0.00005 #0.0001
+  lr: 0.0001
+  weight_decay: 0.00005
 
 
 lr_scheduler:
   type: 'step'  # 'step' or 'cos'
   warmup: False  # 5 epoches, cosine warmup, init_lir=0.00001 in default
   decay_rate: 0.1
-  decay_list: [125, 165]
+  decay_list: [125, 165, 195]
 
 
 trainer:
-  max_epoch: 195
+  max_epoch: 200
   gpu_ids: '0'
   save_frequency: 1  # checkpoint save interval (in epoch)
   # resume_model: True
